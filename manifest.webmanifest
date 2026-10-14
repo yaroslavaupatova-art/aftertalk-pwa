@@ -1,0 +1,16 @@
+{
+  "name": "AfterTalk — Conversation to Calendar",
+  "short_name": "AfterTalk",
+  "description": "Turn a quick post-conversation note into a next step, follow-up draft, and calendar reminder.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F7F5FA",
+  "theme_color": "#6D4AFF",
+  "categories": ["productivity", "business"],
+  "icons": [
+    {"src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
+    {"src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}
+  ]
+}

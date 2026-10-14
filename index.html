@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#6D4AFF">
+  <meta name="description" content="Turn every useful conversation into a next step and calendar reminder.">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="AfterTalk">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="icon" href="icon-192.png">
+  <link rel="stylesheet" href="styles.css">
+  <title>AfterTalk</title>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="#capture" aria-label="AfterTalk home">AfterTalk</a>
+      <div class="top-actions">
+        <button id="install-button" class="install-button" type="button">Install</button>
+        <button id="avatar-button" class="avatar" type="button" aria-label="Open my context">ME</button>
+      </div>
+    </header>
+
+    <main class="main">
+      <section id="screen-capture" class="screen active" aria-labelledby="capture-title">
+        <button id="context-strip" class="context-strip" type="button">
+          <span class="context-icon">✦</span>
+          <span class="context-copy">
+            <strong id="context-strip-title">Set up your personal context</strong>
+            <small id="context-strip-subtitle">Add your name, work, and follow-up style once.</small>
+          </span>
+          <span class="context-edit">Edit</span>
+        </button>
+
+        <div class="hero">
+          <p class="eyebrow">Ready when you are</p>
+          <h1 id="capture-title">What should happen next?</h1>
+          <p>Say it while the conversation is fresh. Messy is fine.</p>
+        </div>
+
+        <div class="mic-area">
+          <div class="mic-halo" aria-hidden="true"></div>
+          <button id="mic-button" class="mic-button" type="button" aria-label="Start voice capture"><span>🎙</span></button>
+          <p id="mic-hint" class="mic-hint">Tap to speak</p>
+        </div>
+
+        <div class="divider"><span>or type a quick note</span></div>
+        <label class="sr-only" for="raw-note">Conversation note</label>
+        <textarea id="raw-note" class="note-input" placeholder="I met… We discussed… I promised…"></textarea>
+        <button id="sample-button" class="text-button" type="button">Use a sample capture</button>
+        <button id="generate-button" class="primary-button" type="button" disabled>Make my next step →</button>
+        <p class="safety-note">Nothing reaches your calendar until you confirm it. <a href="privacy.html">Privacy</a> · <a href="terms.html">Pilot terms</a></p>
+      </section>
+
+      <section id="screen-review" class="screen" aria-labelledby="review-title">
+        <div class="section-heading with-back">
+          <button id="review-back" class="back-button" type="button" aria-label="Back to capture">←</button>
+          <div>
+            <h1 id="review-title">Your next step</h1>
+            <p>Edit anything before it reaches your calendar.</p>
+          </div>
+        </div>
+
+        <article class="action-card">
+          <label class="field-label" for="review-matters">What matters</label>
+          <textarea id="review-matters" class="inline-editor compact"></textarea>
+
+          <label class="field-label" for="review-action">Recommended action</label>
+          <textarea id="review-action" class="inline-editor action-editor"></textarea>
+
+          <div class="why-box">
+            <strong>Why this step</strong>
+            <p id="review-why"></p>
+          </div>
+
+          <label class="field-label" for="review-draft">Rough follow-up</label>
+          <textarea id="review-draft" class="inline-editor draft-editor"></textarea>
+
+          <label class="field-label" for="review-due">When should the calendar remind you?</label>
+          <input id="review-due" class="date-input" type="datetime-local">
+          <p id="reminder-explanation" class="input-help">Apple Calendar file: 30 minutes before. Google Calendar: your account’s default notification.</p>
+
+          <label class="field-label" for="calendar-choice">Calendar</label>
+          <select id="calendar-choice" class="select-input">
+            <option value="google">Google Calendar</option>
+            <option value="apple">Apple Calendar</option>
+          </select>
+
+          <button id="calendar-button" class="primary-button" type="button">Prepare calendar task</button>
+          <div id="calendar-notice" class="notice" role="status" hidden></div>
+        </article>
+      </section>
+
+      <section id="screen-recent" class="screen" aria-labelledby="recent-title">
+        <div class="section-heading">
+          <p class="eyebrow">Recent</p>
+          <h1 id="recent-title">Nothing gets lost</h1>
+          <p>Prepared actions from your conversations.</p>
+        </div>
+        <div id="recent-list" class="recent-list"></div>
+      </section>
+
+      <section id="screen-context" class="screen" aria-labelledby="context-title">
+        <div class="section-heading">
+          <p class="eyebrow">My context</p>
+          <h1 id="context-title">The app should already know you</h1>
+          <p>This information stays in this browser during the pilot.</p>
+        </div>
+
+        <form id="context-form">
+          <div class="form-card">
+            <label class="field-label" for="profile-name">Name</label>
+            <input id="profile-name" class="text-input" autocomplete="name">
+
+            <label class="field-label" for="profile-role">Role</label>
+            <input id="profile-role" class="text-input">
+
+            <label class="field-label" for="profile-company">Company</label>
+            <input id="profile-company" class="text-input" autocomplete="organization">
+
+            <label class="field-label" for="profile-services">Services</label>
+            <textarea id="profile-services" class="text-input textarea"></textarea>
+
+            <label class="field-label" for="profile-positioning">Positioning</label>
+            <textarea id="profile-positioning" class="text-input textarea"></textarea>
+
+            <label class="field-label" for="profile-voice">Voice style</label>
+            <textarea id="profile-voice" class="text-input textarea"></textarea>
+
+            <label class="field-label" for="profile-followup">Follow-up style</label>
+            <textarea id="profile-followup" class="text-input textarea"></textarea>
+          </div>
+
+          <div class="form-card">
+            <h2>Temporary context</h2>
+            <p>Optional context for an event, trip, project, or focused period.</p>
+
+            <label class="field-label" for="temp-label">Label</label>
+            <input id="temp-label" class="text-input" placeholder="Nordic Growth Forum">
+
+            <label class="field-label" for="temp-dates">Dates</label>
+            <input id="temp-dates" class="text-input" placeholder="14–16 October">
+
+            <label class="field-label" for="temp-goals">Current goals</label>
+            <textarea id="temp-goals" class="text-input textarea" placeholder="Partnerships, client opportunities, useful product ideas…"></textarea>
+          </div>
+
+          <button id="save-context" class="primary-button" type="submit">Save context</button>
+          <p class="local-data-note">Pilot privacy: your profile and history stay on this device. Clearing browser data removes them.</p>
+        </form>
+      </section>
+    </main>
+
+    <nav class="bottom-nav" aria-label="Primary navigation">
+      <button class="nav-button active" type="button" data-screen="capture"><span>◉</span>Capture</button>
+      <button class="nav-button" type="button" data-screen="recent"><span>✓</span>Recent</button>
+      <button class="nav-button" type="button" data-screen="context"><span>◎</span>Context</button>
+    </nav>
+  </div>
+
+  <script src="logic.js" defer></script>
+  <script src="app.js" defer></script>
+</body>
+</html>
