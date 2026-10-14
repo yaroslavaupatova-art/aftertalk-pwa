@@ -1,4 +1,4 @@
-const CACHE = 'aftertalk-web-v3';
+const CACHE = 'aftertalk-web-v4';
 const SHELL = ['./', 'index.html', 'styles.css', 'logic.js', 'app.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'privacy.html', 'terms.html']
   .map((path) => new URL(path, self.registration.scope).href);
 
