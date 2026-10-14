@@ -5,6 +5,8 @@
   const STORAGE = {
     profile: 'aftertalk-web/profile',
     context: 'aftertalk-web/context',
+    contextHistory: 'aftertalk-web/context-history',
+    calendar: 'aftertalk-web/calendar',
     actions: 'aftertalk-web/actions',
   };
   const SAMPLE_NOTE = 'I spoke with Anna from Northstar. They may need a Nordic market-entry research partner in November. I promised I would send our AI research case on Friday. I should connect with her and suggest a short call next week.';
@@ -18,6 +20,7 @@
     followUpStyle: 'Brief, human, useful, and centered on one clear next step.',
   };
   const DEFAULT_CONTEXT = { label: '', dates: '', goals: '' };
+  const DEFAULT_CALENDAR = { provider: 'google' };
 
   const $ = (id) => document.getElementById(id);
   const read = (key, fallback) => {
@@ -32,6 +35,8 @@
 
   let profile = read(STORAGE.profile, DEFAULT_PROFILE);
   let temporaryContext = read(STORAGE.context, DEFAULT_CONTEXT);
+  let contextHistory = read(STORAGE.contextHistory, []);
+  let calendarPrefs = read(STORAGE.calendar, DEFAULT_CALENDAR);
   let actions = read(STORAGE.actions, []);
   let activeCard = null;
   let recognition = null;
@@ -49,7 +54,19 @@
     document.querySelectorAll('.nav-button').forEach((button) => button.classList.toggle('active', button.dataset.screen === name || (name === 'review' && button.dataset.screen === 'capture')));
     if (name === 'recent') renderRecent();
     if (name === 'context') populateContextForm();
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    document.querySelector('.main').scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function updateCalendarDisplay(provider = calendarPrefs.provider) {
+    const isApple = provider === 'apple';
+    const name = isApple ? 'Apple Calendar' : 'Google Calendar';
+    $('calendar-strip-title').textContent = `${name} selected`;
+    $('calendar-strip-subtitle').textContent = isApple
+      ? 'AfterTalk will prepare a calendar file for your confirmation.'
+      : 'AfterTalk will open Google Calendar for your confirmation.';
+    $('calendar-setup-status').textContent = isApple
+      ? 'Ready via Apple Calendar file. No sign-in is needed; you confirm each task when the file opens.'
+      : 'Ready via Google Calendar handoff. Stay signed in to Google; you confirm each task before it is saved.';
   }
 
   function updateContextStrip() {
@@ -59,6 +76,74 @@
     $('context-strip-subtitle').textContent = temporaryContext.goals || (hasIdentity
       ? 'Add temporary event or project context only when it helps.'
       : 'Add your name, work, and follow-up style once.');
+    updateCalendarDisplay(calendarPrefs.provider);
+  }
+
+  function rememberContext(context) {
+    if (!(context.label || context.dates || context.goals)) return;
+    const key = [context.label, context.dates, context.goals].join('|').toLowerCase();
+    const previous = contextHistory.find((item) => item.key === key);
+    const snapshot = {
+      ...context,
+      key,
+      id: previous?.id || `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      savedAt: new Date().toISOString(),
+    };
+    contextHistory = [snapshot, ...contextHistory.filter((item) => item.key !== key)].slice(0, 8);
+    write(STORAGE.contextHistory, contextHistory);
+  }
+
+  function activateSavedContext(item) {
+    temporaryContext = { label: item.label || '', dates: item.dates || '', goals: item.goals || '' };
+    write(STORAGE.context, temporaryContext);
+    populateContextForm();
+    updateContextStrip();
+    const button = $('save-context');
+    button.textContent = 'Context activated ✓';
+    setTimeout(() => { button.textContent = 'Save context'; }, 1400);
+  }
+
+  function deleteSavedContext(id) {
+    contextHistory = contextHistory.filter((item) => item.id !== id);
+    write(STORAGE.contextHistory, contextHistory);
+    renderContextHistory();
+  }
+
+  function renderContextHistory() {
+    const list = $('context-history-list');
+    list.replaceChildren();
+    if (!contextHistory.length) {
+      const empty = document.createElement('p');
+      empty.className = 'history-empty';
+      empty.textContent = 'No saved contexts yet. Add an event or project above and save it.';
+      list.append(empty);
+      return;
+    }
+    contextHistory.forEach((item) => {
+      const card = document.createElement('article');
+      card.className = 'history-item';
+      const title = document.createElement('strong');
+      title.textContent = item.label || 'Saved context';
+      const dates = document.createElement('small');
+      dates.textContent = item.dates || 'No dates';
+      const goals = document.createElement('small');
+      goals.textContent = item.goals || 'No goals added';
+      const actionsRow = document.createElement('div');
+      actionsRow.className = 'history-actions';
+      const useButton = document.createElement('button');
+      useButton.type = 'button';
+      useButton.className = 'history-action';
+      useButton.textContent = 'Use again';
+      useButton.addEventListener('click', () => activateSavedContext(item));
+      const deleteButton = document.createElement('button');
+      deleteButton.type = 'button';
+      deleteButton.className = 'history-action delete';
+      deleteButton.textContent = 'Delete';
+      deleteButton.addEventListener('click', () => deleteSavedContext(item.id));
+      actionsRow.append(useButton, deleteButton);
+      card.append(title, dates, goals, actionsRow);
+      list.append(card);
+    });
   }
 
   function populateContextForm() {
@@ -72,6 +157,9 @@
     $('temp-label').value = temporaryContext.label || '';
     $('temp-dates').value = temporaryContext.dates || '';
     $('temp-goals').value = temporaryContext.goals || '';
+    $('profile-calendar').value = calendarPrefs.provider === 'apple' ? 'apple' : 'google';
+    updateCalendarDisplay($('profile-calendar').value);
+    renderContextHistory();
   }
 
   function saveContext(event) {
@@ -90,9 +178,13 @@
       dates: $('temp-dates').value.trim(),
       goals: $('temp-goals').value.trim(),
     };
+    calendarPrefs = { provider: $('profile-calendar').value === 'apple' ? 'apple' : 'google' };
+    rememberContext(temporaryContext);
     write(STORAGE.profile, profile);
     write(STORAGE.context, temporaryContext);
+    write(STORAGE.calendar, calendarPrefs);
     updateContextStrip();
+    renderContextHistory();
     const button = $('save-context');
     button.textContent = 'Saved ✓';
     setTimeout(() => { button.textContent = 'Save context'; }, 1400);
@@ -117,6 +209,7 @@
     $('review-why').textContent = card.why;
     $('review-draft').value = card.followUpDraft;
     $('review-due').value = card.dueLocal || logic.localDateTimeValue(new Date(card.dueAt));
+    $('calendar-choice').value = calendarPrefs.provider === 'apple' ? 'apple' : 'google';
     $('calendar-notice').hidden = true;
     $('calendar-button').disabled = false;
     $('calendar-button').textContent = 'Prepare calendar task';
@@ -156,6 +249,9 @@
     syncReviewToCard();
     const calendar = $('calendar-choice').value;
     const notice = $('calendar-notice');
+    calendarPrefs = { provider: calendar };
+    write(STORAGE.calendar, calendarPrefs);
+    updateContextStrip();
 
     if (calendar === 'google') {
       const popup = window.open(logic.buildGoogleCalendarUrl(activeCard), '_blank', 'noopener,noreferrer');
@@ -282,7 +378,9 @@
     $('calendar-button').addEventListener('click', prepareCalendar);
     $('context-form').addEventListener('submit', saveContext);
     $('context-strip').addEventListener('click', () => showScreen('context'));
+    $('calendar-strip').addEventListener('click', () => showScreen('context'));
     $('avatar-button').addEventListener('click', () => showScreen('context'));
+    $('profile-calendar').addEventListener('change', () => updateCalendarDisplay($('profile-calendar').value));
     $('install-button').addEventListener('click', installApp);
     document.querySelectorAll('.nav-button').forEach((button) => button.addEventListener('click', () => showScreen(button.dataset.screen)));
 

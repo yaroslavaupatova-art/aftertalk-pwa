@@ -35,6 +35,15 @@
           <span class="context-edit">Edit</span>
         </button>
 
+        <button id="calendar-strip" class="context-strip calendar-strip" type="button">
+          <span class="context-icon">▣</span>
+          <span class="context-copy">
+            <strong id="calendar-strip-title">Google Calendar selected</strong>
+            <small id="calendar-strip-subtitle">Set up before capture; you confirm every task.</small>
+          </span>
+          <span class="context-edit">Change</span>
+        </button>
+
         <div class="hero">
           <p class="eyebrow">Ready when you are</p>
           <h1 id="capture-title">What should happen next?</h1>
@@ -135,6 +144,18 @@
           </div>
 
           <div class="form-card">
+            <h2>Calendar setup</h2>
+            <p>Choose your destination once, before you start capturing notes.</p>
+
+            <label class="field-label" for="profile-calendar">Preferred calendar</label>
+            <select id="profile-calendar" class="select-input">
+              <option value="google">Google Calendar</option>
+              <option value="apple">Apple Calendar</option>
+            </select>
+            <div id="calendar-setup-status" class="setup-status"></div>
+          </div>
+
+          <div class="form-card">
             <h2>Temporary context</h2>
             <p>Optional context for an event, trip, project, or focused period.</p>
 
@@ -146,6 +167,12 @@
 
             <label class="field-label" for="temp-goals">Current goals</label>
             <textarea id="temp-goals" class="text-input textarea" placeholder="Partnerships, client opportunities, useful product ideas…"></textarea>
+          </div>
+
+          <div class="form-card">
+            <h2>Context history</h2>
+            <p>Saved event and project contexts. Activate one instead of typing it again.</p>
+            <div id="context-history-list" class="context-history-list"></div>
           </div>
 
           <button id="save-context" class="primary-button" type="submit">Save context</button>

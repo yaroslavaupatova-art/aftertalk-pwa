@@ -12,6 +12,8 @@ A dependency-free, mobile-first Progressive Web App. It can be hosted as static 
 
 - Personal/company context stored locally in the user’s browser
 - Temporary event/project context
+- Reusable history for previously saved event/project contexts
+- Preferred calendar selected before note capture
 - Typed capture
 - Browser speech recognition where supported
 - Phone keyboard dictation as a fallback
