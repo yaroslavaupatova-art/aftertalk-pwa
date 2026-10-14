@@ -119,6 +119,15 @@ async function main() {
   check('Manifest is scoped to the published path', initial.manifest === new URL('manifest.webmanifest', TARGET).href, initial.manifest);
   check('No third-party runtime assets', initial.resources.every((url) => new URL(url).origin === new URL(TARGET).origin), JSON.stringify(initial.resources));
   const captureShot = await screenshot('01-capture');
+  await evaluate("document.querySelector('.main').scrollTop = document.querySelector('.main').scrollHeight");
+  await sleep(100);
+  const captureBottom = await evaluate(`(() => {
+    const main = document.querySelector('.main').getBoundingClientRect();
+    const button = document.querySelector('#generate-button').getBoundingClientRect();
+    return {visible:button.top >= main.top && button.bottom <= main.bottom,main:{top:main.top,bottom:main.bottom},button:{top:button.top,bottom:button.bottom}};
+  })()`);
+  check('Capture action reachable by scrolling', captureBottom.visible, JSON.stringify(captureBottom));
+  const captureBottomShot = await screenshot('01b-capture-bottom');
 
   const pwa = await evaluate(`Promise.all([
     fetch('manifest.webmanifest').then(r => ({ok:r.ok,status:r.status,type:r.headers.get('content-type')})),
@@ -187,12 +196,22 @@ async function main() {
   await sleep(100);
   const activated = await evaluate(`({label:document.querySelector('#temp-label').value,strip:document.querySelector('#context-strip-title').textContent,stored:JSON.parse(localStorage.getItem('aftertalk-web/context')).label})`);
   check('Saved context can be reactivated', activated.label === 'Growth Summit' && activated.strip === 'Growth Summit' && activated.stored === 'Growth Summit', JSON.stringify(activated));
+  await sleep(1500);
 
   await evaluate("document.querySelectorAll('.history-item')[0].querySelector('.history-action.delete').click()");
   await sleep(100);
   history = await evaluate(`({count:document.querySelectorAll('.history-item').length,title:document.querySelector('.history-item strong')?.textContent})`);
   check('Saved context can be deleted', history.count === 1 && history.title === 'Growth Summit', JSON.stringify(history));
   const contextShot = await screenshot('02-context');
+  await evaluate("document.querySelector('.main').scrollTop = document.querySelector('.main').scrollHeight");
+  await sleep(100);
+  const contextBottom = await evaluate(`(() => {
+    const main = document.querySelector('.main').getBoundingClientRect();
+    const button = document.querySelector('#save-context').getBoundingClientRect();
+    return {visible:button.top >= main.top && button.bottom <= main.bottom,main:{top:main.top,bottom:main.bottom},button:{top:button.top,bottom:button.bottom}};
+  })()`);
+  check('Context save and history controls reachable by scrolling', contextBottom.visible, JSON.stringify(contextBottom));
+  const contextBottomShot = await screenshot('02b-context-bottom');
 
   await evaluate("document.querySelector('[data-screen=capture]').click(); document.querySelector('#sample-button').click(); document.querySelector('#generate-button').click();");
   await sleep(180);
@@ -213,6 +232,16 @@ async function main() {
   check('Review has no horizontal overflow', !review.horizontalOverflow);
   check('Bottom navigation visible on long review screen', review.navRect.bottom <= review.navRect.viewport + 1, JSON.stringify(review.navRect));
   const reviewShot = await screenshot('03-review');
+  await evaluate("document.querySelector('.main').scrollTop = document.querySelector('.main').scrollHeight");
+  await sleep(100);
+  const reviewBottom = await evaluate(`(() => {
+    const main = document.querySelector('.main').getBoundingClientRect();
+    const button = document.querySelector('#calendar-button').getBoundingClientRect();
+    const date = document.querySelector('#review-due').getBoundingClientRect();
+    return {visible:button.top >= main.top && button.bottom <= main.bottom && date.top >= main.top && date.bottom <= main.bottom,main:{top:main.top,bottom:main.bottom},button:{top:button.top,bottom:button.bottom},date:{top:date.top,bottom:date.bottom}};
+  })()`);
+  check('Calendar controls reachable by scrolling', reviewBottom.visible, JSON.stringify(reviewBottom));
+  const reviewBottomShot = await screenshot('03b-review-bottom');
 
   await evaluate("document.querySelector('#calendar-button').click()");
   await sleep(200);
@@ -252,7 +281,7 @@ async function main() {
     failed: failures.length,
     failures,
     checks,
-    screenshots: [captureShot, contextShot, reviewShot],
+    screenshots: [captureShot, captureBottomShot, contextShot, contextBottomShot, reviewShot, reviewBottomShot],
   };
   console.log(JSON.stringify(report, null, 2));
   if (failures.length) process.exitCode = 1;
