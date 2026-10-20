@@ -4,7 +4,9 @@ const path = require('node:path');
 
 const TARGET = process.env.TARGET_URL || 'https://yaroslavaupatova-art.github.io/aftertalk-pwa/';
 const EXPECTED_SCOPE = new URL('./', TARGET).href;
-const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+const TARGET_HOST = new URL(TARGET).hostname;
+const IS_LOCAL_TARGET = ['127.0.0.1', 'localhost', '[::1]'].includes(TARGET_HOST);
+const CHROME = process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const PROFILE = '/Users/yaroslava/.hermes/cache/scratch/aftertalk-public-qa-profile';
 const ARTIFACTS = '/Users/yaroslava/.hermes/cache/scratch/aftertalk-qa';
 const DEBUG_PORT = 9225;
@@ -58,11 +60,19 @@ async function screenshot(name) {
 
 async function waitForApp() {
   for (let attempt = 0; attempt < 40; attempt += 1) {
-    const ready = await evaluate("document.readyState === 'complete' && Boolean(globalThis.AfterTalkLogic) && Boolean(document.querySelector('#generate-button'))");
+    const ready = await evaluate("document.readyState === 'complete' && Boolean(globalThis.AfterTalkLogic) && Boolean(globalThis.AfterTalkAIClient) && Boolean(globalThis.AfterTalkConfig) && Boolean(document.querySelector('#generate-button'))");
     if (ready) return;
     await sleep(200);
   }
   throw new Error('AfterTalk did not initialize.');
+}
+
+async function waitForReview() {
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    if (await evaluate("document.querySelector('.screen.active')?.id === 'screen-review'")) return;
+    await sleep(100);
+  }
+  throw new Error('Action card generation did not finish.');
 }
 
 async function main() {
@@ -106,6 +116,9 @@ async function main() {
     horizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
     navRect: (() => { const r = document.querySelector('.bottom-nav').getBoundingClientRect(); return {top:r.top,bottom:r.bottom,height:r.height,viewport:innerHeight}; })(),
     manifest: document.querySelector('link[rel=manifest]')?.href,
+    aiEnabled: globalThis.AfterTalkConfig?.enabled,
+    contextDisclosure: document.querySelector('#context-data-disclosure')?.textContent,
+    qaHooks: Boolean(globalThis.AfterTalkQAHooks),
     resources: performance.getEntriesByType('resource').map((item) => item.name)
   })`);
   check('Page title', initial.title === 'AfterTalk', initial.title);
@@ -117,6 +130,9 @@ async function main() {
   check('No initial horizontal overflow', !initial.horizontalOverflow);
   check('Bottom navigation visible initially', initial.navRect.bottom <= initial.navRect.viewport + 1, JSON.stringify(initial.navRect));
   check('Manifest is scoped to the published path', initial.manifest === new URL('manifest.webmanifest', TARGET).href, initial.manifest);
+  check('Production runtime config enables remote AI', initial.aiEnabled === true, String(initial.aiEnabled));
+  check('AI-on context disclosure matches runtime configuration', initial.contextDisclosure === 'When you request a result, your profile fields and active context are sent for AI generation. Context history remains in this browser.', initial.contextDisclosure);
+  if (IS_LOCAL_TARGET) check('Local QA hooks available', initial.qaHooks);
   check('No third-party runtime assets', initial.resources.every((url) => new URL(url).origin === new URL(TARGET).origin), JSON.stringify(initial.resources));
   const captureShot = await screenshot('01-capture');
   await evaluate("document.querySelector('.main').scrollTop = document.querySelector('.main').scrollHeight");
@@ -214,7 +230,7 @@ async function main() {
   const contextBottomShot = await screenshot('02b-context-bottom');
 
   await evaluate("document.querySelector('[data-screen=capture]').click(); document.querySelector('#sample-button').click(); document.querySelector('#generate-button').click();");
-  await sleep(180);
+  await waitForReview();
   const review = await evaluate(`({
     active: document.querySelector('.screen.active')?.id,
     matters: document.querySelector('#review-matters').value,
@@ -222,10 +238,16 @@ async function main() {
     draft: document.querySelector('#review-draft').value,
     due: document.querySelector('#review-due').value,
     calendar: document.querySelector('#calendar-choice').value,
+    generationStatus: document.querySelector('#review-generation-status').textContent,
     navRect: (() => { const r = document.querySelector('.bottom-nav').getBoundingClientRect(); return {top:r.top,bottom:r.bottom,height:r.height,viewport:innerHeight}; })(),
     horizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth
   })`);
   check('Review screen generated', review.active === 'screen-review' && review.action.length > 0 && review.matters.length > 0, JSON.stringify(review));
+  if (IS_LOCAL_TARGET) {
+    check('Unapproved local origin reports deterministic fallback honestly', review.generationStatus.includes('on-device fallback') && !review.generationStatus.includes('Created with AI'), review.generationStatus);
+  } else {
+    check('Production origin reports AI generation honestly', review.generationStatus.includes('Created with AI'), review.generationStatus);
+  }
   check('Follow-up draft uses saved profile', review.draft.includes('QA Tester') && !review.draft.includes('Your name'));
   check('Due date generated', !Number.isNaN(new Date(review.due).getTime()), review.due);
   check('Preferred calendar preselected', review.calendar === 'apple', review.calendar);
@@ -242,6 +264,96 @@ async function main() {
   })()`);
   check('Calendar controls reachable by scrolling', reviewBottom.visible, JSON.stringify(reviewBottom));
   const reviewBottomShot = await screenshot('03b-review-bottom');
+
+  if (IS_LOCAL_TARGET) {
+    const missingDue = await evaluate(`(() => {
+      globalThis.__afterTalkOriginalCard = structuredClone(globalThis.AfterTalkQAHooks.activeCard());
+      const card = {
+        ...structuredClone(globalThis.__afterTalkOriginalCard),
+        dueAt: new Date().toISOString(),
+        dueLocal: '2026-10-15T10:00',
+        dueDateMissing: true,
+        missingInformation: ['Contact name', ' dUE   DaTe ']
+      };
+      globalThis.AfterTalkQAHooks.renderReview(card, {message:'Created with AI.',kind:'success'});
+      return {
+        due: document.querySelector('#review-due').value,
+        warning: document.querySelector('#review-due-warning').textContent,
+        warningHidden: document.querySelector('#review-due-warning').hidden,
+        buttonDisabled: document.querySelector('#calendar-button').disabled
+      };
+    })()`);
+    check('AI card with missing due renders a blank date', missingDue.due === '', JSON.stringify(missingDue));
+    check('Missing due warns and disables calendar preparation', !missingDue.warningHidden && missingDue.warning.includes('valid date and time') && missingDue.buttonDisabled, JSON.stringify(missingDue));
+
+    const invalidDue = await evaluate(`(() => {
+      const input = document.querySelector('#review-due');
+      input.value = 'not-a-date';
+      input.dispatchEvent(new Event('input', {bubbles:true}));
+      globalThis.AfterTalkQAHooks.prepareCalendar();
+      return {
+        buttonDisabled: document.querySelector('#calendar-button').disabled,
+        notice: document.querySelector('#calendar-notice').textContent,
+        actionCount: JSON.parse(localStorage.getItem('aftertalk-web/actions') || '[]').length,
+        missing: globalThis.AfterTalkQAHooks.activeCard().missingInformation,
+        dueDateMissing: globalThis.AfterTalkQAHooks.activeCard().dueDateMissing
+      };
+    })()`);
+    check('Invalid due cannot prepare a calendar handoff programmatically', invalidDue.buttonDisabled && invalidDue.notice.includes('blocked') && invalidDue.actionCount === 0, JSON.stringify(invalidDue));
+    check('Invalid due preserves the structural missing-date state', invalidDue.dueDateMissing === true && invalidDue.missing.some((item) => item.replace(/\s+/g, ' ').trim().toLowerCase() === 'due date'), JSON.stringify(invalidDue));
+
+    const suppliedDue = await evaluate(`(() => {
+      const input = document.querySelector('#review-due');
+      input.value = '2026-10-20T10:30';
+      input.dispatchEvent(new Event('input', {bubbles:true}));
+      const result = {
+        buttonDisabled: document.querySelector('#calendar-button').disabled,
+        warningHidden: document.querySelector('#review-due-warning').hidden,
+        missing: globalThis.AfterTalkQAHooks.activeCard().missingInformation,
+        dueDateMissing: globalThis.AfterTalkQAHooks.activeCard().dueDateMissing,
+        dueAt: globalThis.AfterTalkQAHooks.activeCard().dueAt
+      };
+      globalThis.AfterTalkQAHooks.renderReview(globalThis.__afterTalkOriginalCard, {message:'Created on this device with the built-in fallback.',kind:'fallback'});
+      return result;
+    })()`);
+    check('Valid supplied due enables calendar preparation', !suppliedDue.buttonDisabled && suppliedDue.warningHidden && !Number.isNaN(Date.parse(suppliedDue.dueAt)), JSON.stringify(suppliedDue));
+    check('Valid supplied due clears structural and textual missing-date flags', suppliedDue.dueDateMissing === false && !suppliedDue.missing.some((item) => item.replace(/\s+/g, ' ').trim().toLowerCase() === 'due date') && suppliedDue.missing.includes('Contact name'), JSON.stringify(suppliedDue));
+
+    const googleHandoff = await evaluate(`(() => {
+      const originalOpen = window.open;
+      const trace = {};
+      window.open = (url, target, features) => {
+        trace.initialUrl = url;
+        trace.target = target;
+        trace.features = features || '';
+        if (trace.features.includes('noopener')) return null;
+        const popup = {opener: window};
+        const location = {};
+        Object.defineProperty(location, 'href', {
+          set(value) {
+            trace.destination = value;
+            trace.openerClearedBeforeNavigation = popup.opener === null;
+          }
+        });
+        popup.location = location;
+        return popup;
+      };
+      document.querySelector('#calendar-choice').value = 'google';
+      globalThis.AfterTalkQAHooks.prepareCalendar();
+      window.open = originalOpen;
+      const result = {
+        notice: document.querySelector('#calendar-notice').textContent,
+        buttonDisabled: document.querySelector('#calendar-button').disabled,
+        actionCount: JSON.parse(localStorage.getItem('aftertalk-web/actions') || '[]').length,
+        trace
+      };
+      globalThis.AfterTalkQAHooks.renderReview(globalThis.__afterTalkOriginalCard, {message:'Created on this device with the built-in fallback.',kind:'fallback'});
+      document.querySelector('#calendar-choice').value = 'apple';
+      return result;
+    })()`);
+    check('Google calendar handoff reaches confirmation state', googleHandoff.notice.includes('Google Calendar opened') && googleHandoff.buttonDisabled && googleHandoff.actionCount === 1, JSON.stringify(googleHandoff));
+    check('Google calendar handoff severs opener before navigation', googleHandoff.trace.initialUrl === '' && googleHandoff.trace.target === '_blank' && googleHandoff.trace.openerClearedBeforeNavigation && googleHandoff.trace.destination.startsWith('https://calendar.google.com/'), JSON.stringify(googleHandoff));
+  }
 
   await evaluate("document.querySelector('#calendar-button').click()");
   await sleep(200);

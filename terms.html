@@ -15,30 +15,41 @@
     <article class="card">
       <h1>Pilot terms</h1>
       <p class="meta">Effective 14 October 2026</p>
-      <p class="notice"><strong>AfterTalk is an early pilot.</strong> Review every generated suggestion, follow-up, date, and calendar entry before relying on it.</p>
+      <p class="notice"><strong>AfterTalk is an early pilot.</strong> AI and fallback output can be incomplete, inaccurate, or unsuitable. Review every suggestion, follow-up, name, date, and calendar entry before using it.</p>
 
       <h2>Purpose</h2>
-      <p>AfterTalk helps turn a post-conversation note into a suggested next step, a rough follow-up draft, and a calendar handoff. It is a productivity aid, not a system of record or professional adviser.</p>
+      <p>AfterTalk turns a post-conversation note into a suggested next step, a rough follow-up draft, and a calendar handoff. Depending on the pilot configuration and service availability, the result may come from a remote AI service or a deterministic rules engine in the browser. AfterTalk is a productivity aid, not a system of record or professional adviser.</p>
 
       <h2>Your responsibility</h2>
       <ul>
-        <li>Confirm that generated text is accurate and appropriate.</li>
-        <li>Confirm calendar dates, time zones, reminders, and recipients.</li>
-        <li>Only enter information you have the right to use.</li>
+        <li>Review generated output and confirm that it is accurate, appropriate, and supported by your note.</li>
+        <li>Confirm names, commitments, recipients, calendar dates, time zones, and reminders.</li>
+        <li>Only enter information you have the right and authority to use and share with the services described in the privacy notice.</li>
         <li>Follow applicable privacy, employment, confidentiality, and recording laws.</li>
+        <li>Keep important records in your normal calendar, CRM, or another trusted system.</li>
       </ul>
 
-      <h2>No automatic sending</h2>
-      <p>The pilot does not automatically send messages or silently write calendar events. You must review and confirm actions in the relevant calendar service.</p>
+      <h2>AI service and fallback</h2>
+      <p>When AI is enabled, requesting a card sends the current note, profile fields, and active context through the configured Supabase Edge Function to OpenAI. Service limits, safety controls, outages, or timeouts may prevent an AI result. In that case, AfterTalk uses its deterministic on-device fallback. A fallback result is not an AI result and may be more limited, but it requires the same review.</p>
 
-      <h2>Availability and data</h2>
-      <p>The pilot is provided as available and may change or stop without notice. Browser-stored data can be lost if site data is cleared, the browser is reset, or the device is unavailable. Keep any important information in your normal calendar, CRM, or other trusted system.</p>
+      <h2>No automatic sending</h2>
+      <p>AfterTalk does not automatically send messages or silently create calendar events.</p>
+      <ul>
+        <li>For Google Calendar, AfterTalk opens a prefilled Google page. You must review the content and click <strong>Save</strong> there.</li>
+        <li>For Apple Calendar, AfterTalk downloads an `.ics` file. You must open it and confirm <strong>Add</strong>.</li>
+      </ul>
+
+      <h2>Availability and local data</h2>
+      <p>The pilot is provided as available and may change, be rate-limited, or stop without notice. Profile information, context history, preferences, and prepared actions are stored in the browser and can be lost if site data is cleared, the browser is reset, or the device is unavailable. There is no AfterTalk account or cross-device sync in this pilot.</p>
+
+      <h2>Acceptable use</h2>
+      <p>Do not use AfterTalk to submit unlawful content, credentials, payment information, highly sensitive personal data, or confidential information you are not authorized to process. Do not try to bypass access controls, origin restrictions, rate limits, or other safeguards.</p>
 
       <h2>No warranty</h2>
-      <p>Generated outputs may be incomplete or incorrect. To the extent allowed by law, the pilot is provided without warranties, and its operators are not responsible for decisions made solely from generated content.</p>
+      <p>Generated output may omit context, infer the wrong action, or choose an unsuitable date. To the extent allowed by law, the pilot is provided without warranties, and its operators are not responsible for decisions made solely from generated content.</p>
 
       <h2>Changes</h2>
-      <p>These terms may be updated as the product moves beyond the pilot. Continued use after an update means you accept the revised pilot terms.</p>
+      <p>These terms may be updated as the product changes. The effective date will be updated with revised terms. Continued use after an update means you accept the revised pilot terms.</p>
     </article>
   </main>
 </body>

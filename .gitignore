@@ -1,0 +1,11 @@
+# Local Supabase state and secrets
+supabase/.temp/
+supabase/.branches/
+supabase/.env
+supabase/.env.*
+!supabase/.env.example
+
+# Common local environment files
+.env
+.env.*
+!.env.example

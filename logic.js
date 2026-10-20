@@ -116,6 +116,62 @@
     return local.toISOString().slice(0, 16);
   }
 
+  function contextPrivacyDisclosure(aiEnabled) {
+    return aiEnabled
+      ? 'When you request a result, your profile fields and active context are sent for AI generation. Context history remains in this browser.'
+      : 'AI is off. Your profile and active context are not sent for generation. Context history remains in this browser.';
+  }
+
+  function validLocalDateTime(value) {
+    if (typeof value !== 'string') return null;
+    const match = value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
+    if (!match) return null;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return null;
+    const parts = match.slice(1).map(Number);
+    if (
+      date.getFullYear() !== parts[0] || date.getMonth() + 1 !== parts[1]
+      || date.getDate() !== parts[2] || date.getHours() !== parts[3]
+      || date.getMinutes() !== parts[4]
+    ) return null;
+    return date;
+  }
+
+  function isDueDateFlag(value) {
+    return typeof value === 'string'
+      && value.replace(/\s+/g, ' ').trim().toLowerCase() === 'due date';
+  }
+
+  function reviewDueState(card) {
+    const missingDueDate = Boolean(card && card.dueDateMissing === true);
+    let candidate = '';
+    if (!missingDueDate && card) {
+      if (card.dueLocal) candidate = String(card.dueLocal);
+      else {
+        const dueAt = new Date(card.dueAt);
+        if (!Number.isNaN(dueAt.getTime())) candidate = localDateTimeValue(dueAt);
+      }
+    }
+    const valid = validLocalDateTime(candidate) !== null;
+    return {
+      value: valid ? candidate : '',
+      valid,
+      warning: valid ? '' : 'Add a valid date and time before preparing a calendar task.',
+    };
+  }
+
+  function applyReviewDueDate(card, value) {
+    const due = validLocalDateTime(value);
+    if (!card || !due) return false;
+    card.dueAt = due.toISOString();
+    card.dueLocal = localDateTimeValue(due);
+    card.dueDateMissing = false;
+    card.missingInformation = Array.isArray(card.missingInformation)
+      ? card.missingInformation.filter((item) => !isDueDateFlag(item))
+      : [];
+    return true;
+  }
+
   function buildDraft(contactName, whatMatters, nextStep, profile) {
     const greeting = contactName ? `Hi ${contactName.split(' ')[0]}` : 'Hi';
     const signature = profile.name ? `\n\nBest,\n${profile.name}` : '';
@@ -150,7 +206,9 @@
       followUpDraft: buildDraft(contactName, whatMatters, nextStep, profile),
       dueAt: dueAt.toISOString(),
       dueLocal: localDateTimeValue(dueAt),
+      dueDateMissing: false,
       priority: /\b(today|urgent|asap|immediately)\b/i.test(note) ? 'Now' : /\bnext month|later\b/i.test(note) ? 'Later' : 'Soon',
+      missingInformation: [],
       calendarStatus: 'draft',
     };
   }
@@ -224,6 +282,9 @@
     generateActionCard,
     suggestDueDate,
     localDateTimeValue,
+    contextPrivacyDisclosure,
+    reviewDueState,
+    applyReviewDueDate,
     calendarNotes,
     buildGoogleCalendarUrl,
     buildIcs,

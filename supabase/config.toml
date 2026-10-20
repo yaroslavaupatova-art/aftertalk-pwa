@@ -1,0 +1,6 @@
+project_id = "aftertalk"
+
+[functions.generate-action]
+# Publishable keys are not JWTs. The function authenticates the browser's
+# apikey with @supabase/server using auth: "publishable".
+verify_jwt = false

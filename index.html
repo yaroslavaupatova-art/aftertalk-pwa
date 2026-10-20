@@ -61,6 +61,7 @@
         <textarea id="raw-note" class="note-input" placeholder="I met… We discussed… I promised…"></textarea>
         <button id="sample-button" class="text-button" type="button">Use a sample capture</button>
         <button id="generate-button" class="primary-button" type="button" disabled>Make my next step →</button>
+        <div id="generation-status" class="generation-status" role="status" aria-live="polite" hidden></div>
         <p class="safety-note">Nothing reaches your calendar until you confirm it. <a href="privacy.html">Privacy</a> · <a href="terms.html">Pilot terms</a></p>
       </section>
 
@@ -70,6 +71,7 @@
           <div>
             <h1 id="review-title">Your next step</h1>
             <p>Edit anything before it reaches your calendar.</p>
+            <div id="review-generation-status" class="generation-status review-generation-status" role="status" hidden></div>
           </div>
         </div>
 
@@ -89,7 +91,8 @@
           <textarea id="review-draft" class="inline-editor draft-editor"></textarea>
 
           <label class="field-label" for="review-due">When should the calendar remind you?</label>
-          <input id="review-due" class="date-input" type="datetime-local">
+          <input id="review-due" class="date-input" type="datetime-local" aria-describedby="review-due-warning reminder-explanation">
+          <p id="review-due-warning" class="input-warning" role="alert" hidden></p>
           <p id="reminder-explanation" class="input-help">Apple Calendar file: 30 minutes before. Google Calendar: your account’s default notification.</p>
 
           <label class="field-label" for="calendar-choice">Calendar</label>
@@ -116,7 +119,7 @@
         <div class="section-heading">
           <p class="eyebrow">My context</p>
           <h1 id="context-title">The app should already know you</h1>
-          <p>This information stays in this browser during the pilot.</p>
+          <p id="context-data-disclosure">AI is off. Your profile and active context are not sent for generation. Context history remains in this browser.</p>
         </div>
 
         <form id="context-form">
@@ -176,7 +179,7 @@
           </div>
 
           <button id="save-context" class="primary-button" type="submit">Save context</button>
-          <p class="local-data-note">Pilot privacy: your profile and history stay on this device. Clearing browser data removes them.</p>
+          <p id="context-privacy-note" class="local-data-note">AI is off. Your profile and active context are not sent for generation. Context history remains in this browser.</p>
         </form>
       </section>
     </main>
@@ -188,7 +191,9 @@
     </nav>
   </div>
 
+  <script src="runtime-config.js" defer></script>
   <script src="logic.js" defer></script>
+  <script src="ai-client.js" defer></script>
   <script src="app.js" defer></script>
 </body>
 </html>

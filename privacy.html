@@ -15,28 +15,36 @@
     <article class="card">
       <h1>Privacy notice</h1>
       <p class="meta">Pilot version · Effective 14 October 2026</p>
-      <p class="notice"><strong>Short version:</strong> AfterTalk currently works locally in your browser. It has no user accounts, analytics, advertising trackers, or application database.</p>
+      <p class="notice"><strong>Short version:</strong> Your profile and history stay in this browser. If AI is enabled and you ask AfterTalk to create a next step, the current note, profile fields, and active context are sent through AfterTalk’s Supabase function to OpenAI. If AI is disabled or unavailable, the card is created on your device.</p>
 
-      <h2>Information you enter</h2>
-      <p>You may enter profile information, temporary context, conversation notes, next steps, and follow-up drafts. The pilot stores this information in your browser’s local storage on the device you are using.</p>
+      <h2>Information stored in your browser</h2>
+      <p>AfterTalk stores your profile and writing preferences, active temporary context, saved context history, calendar preference, and prepared actions in local storage on the browser you are using. A prepared action can include the source note, next step, date, and follow-up draft.</p>
+      <p>There is no AfterTalk account or cross-device sync in this pilot. Clearing this site’s browser data removes these local records. They do not automatically transfer to another browser or device.</p>
+
+      <h2>AI processing</h2>
+      <p>Remote AI is used only when it has been configured and enabled by the pilot operator and you press <strong>Make my next step</strong>. AfterTalk sends the current note, the saved profile fields used to tailor the result, and the active temporary context to a Supabase Edge Function. The complete saved context history is not sent.</p>
+      <p>The function validates and limits the request, then sends its contents to OpenAI to generate a structured Action Card. The application does not intentionally write the note, profile, context, prompt, or generated card to the Supabase database. Supabase, OpenAI, and network providers may process request content and service metadata under the operator’s configuration and their applicable terms.</p>
+      <p>If AI is disabled, the note, profile, and context are handled by the deterministic rules engine in your browser and are not sent to Supabase or OpenAI for generation. If the AI service fails or times out, AfterTalk creates the card with that same on-device fallback.</p>
 
       <h2>Voice input</h2>
-      <p>When browser speech recognition is available and you choose to use it, your browser or operating-system provider may process speech under its own privacy terms. AfterTalk does not store an audio recording. You can always use keyboard dictation or type instead.</p>
+      <p>AfterTalk does not upload or store raw audio. When you choose browser speech recognition, your browser or operating-system provider may process your voice under its own privacy terms. AfterTalk receives the resulting text. If AI is enabled and you request a result, that text is sent as part of the note described above. You can type instead.</p>
+
+      <h2>Abuse prevention and service metadata</h2>
+      <p>When the AI service is used, the Edge Function creates a salted SHA-256 fingerprint from the request IP address. The rate-limit table stores that fingerprint, a usage count, and the start of a one-hour usage window; it does not store the raw IP address in that table. Counters older than 48 hours are pruned when the rate-limit function next consumes a request.</p>
+      <p>The exact browser Origin check reduces casual cross-site abuse, but it is not authentication for non-browser clients and can be imitated outside a browser. Provider-side spending caps and usage limits are the final cost boundary.</p>
+      <p>This does not make use anonymous. Supabase and other network infrastructure can receive connection information, and OpenAI receives the content required to generate the card. The service also creates a request identifier and may record limited operational information such as provider response status, model, and token usage.</p>
 
       <h2>Calendar handoff</h2>
       <ul>
-        <li><strong>Google Calendar:</strong> AfterTalk opens a prefilled Google Calendar page. The information is shared with Google only when you choose this option, and you must confirm saving it.</li>
-        <li><strong>Apple Calendar:</strong> AfterTalk creates a calendar file on your device. You decide whether to add it to your calendar.</li>
+        <li><strong>Google Calendar:</strong> AfterTalk opens a prefilled page on Google Calendar containing the action details, source note, and draft. You review it and click <strong>Save</strong>; AfterTalk does not save the event for you. Google uses your account’s normal notification settings.</li>
+        <li><strong>Apple Calendar:</strong> AfterTalk creates an `.ics` calendar file on your device containing the action details, source note, draft, and a 30-minute reminder. You open the file and confirm whether to add it. AfterTalk does not write directly to Apple Calendar.</li>
       </ul>
-
-      <h2>Storage and deletion</h2>
-      <p>There is no cloud sync in this pilot. Clearing this site’s browser data deletes the profile and history stored by AfterTalk on that browser. Data does not automatically transfer between devices.</p>
 
       <h2>What not to enter</h2>
       <p>Do not enter passwords, payment information, highly sensitive personal data, or confidential information you are not authorized to process. Capture your own post-conversation notes rather than recording other people without permission.</p>
 
       <h2>Changes</h2>
-      <p>This notice may change as accounts, secure cloud storage, production AI, or additional integrations are introduced. The effective date will be updated when the data practices change.</p>
+      <p>This notice may change if AfterTalk adds accounts, cloud storage, new AI providers, analytics, or integrations. The effective date will be updated when the data practices change.</p>
 
       <h2>Questions</h2>
       <p>For this private pilot, contact the person who shared the AfterTalk link with you.</p>

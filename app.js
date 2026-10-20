@@ -2,6 +2,8 @@
   'use strict';
 
   const logic = globalThis.AfterTalkLogic;
+  const aiClient = globalThis.AfterTalkAIClient;
+  const runtimeConfig = globalThis.AfterTalkConfig || {};
   const STORAGE = {
     profile: 'aftertalk-web/profile',
     context: 'aftertalk-web/context',
@@ -42,6 +44,7 @@
   let recognition = null;
   let listening = false;
   let installPrompt = null;
+  let generating = false;
 
   function formatDate(value) {
     return new Intl.DateTimeFormat(undefined, {
@@ -77,6 +80,13 @@
       ? 'Add temporary event or project context only when it helps.'
       : 'Add your name, work, and follow-up style once.');
     updateCalendarDisplay(calendarPrefs.provider);
+  }
+
+  function updateContextPrivacyDisclosure() {
+    const aiEnabled = Boolean(aiClient && aiClient.isConfigured(runtimeConfig));
+    const disclosure = logic.contextPrivacyDisclosure(aiEnabled);
+    $('context-data-disclosure').textContent = disclosure;
+    $('context-privacy-note').textContent = disclosure;
   }
 
   function rememberContext(context) {
@@ -191,37 +201,94 @@
   }
 
   function syncReviewToCard() {
-    if (!activeCard) return;
+    if (!activeCard) return false;
     activeCard.whatMatters = $('review-matters').value.trim();
     activeCard.nextStep = $('review-action').value.trim();
     activeCard.followUpDraft = $('review-draft').value.trim();
-    const due = new Date($('review-due').value);
-    if (!Number.isNaN(due.getTime())) {
-      activeCard.dueAt = due.toISOString();
-      activeCard.dueLocal = logic.localDateTimeValue(due);
-    }
+    return logic.applyReviewDueDate(activeCard, $('review-due').value);
   }
 
-  function renderReview(card) {
+  function updateDueReviewState(valid, warning) {
+    const warningElement = $('review-due-warning');
+    warningElement.textContent = warning || '';
+    warningElement.hidden = !warning;
+    $('review-due').setAttribute('aria-invalid', valid ? 'false' : 'true');
+    $('calendar-button').disabled = !valid;
+  }
+
+  function setGenerationStatus(elementId, message, kind) {
+    const status = $(elementId);
+    status.textContent = message || '';
+    status.className = `generation-status${elementId === 'review-generation-status' ? ' review-generation-status' : ''}${kind ? ` ${kind}` : ''}`;
+    status.hidden = !message;
+  }
+
+  function renderReview(card, generationStatus) {
     activeCard = card;
     $('review-matters').value = card.whatMatters;
     $('review-action').value = card.nextStep;
     $('review-why').textContent = card.why;
     $('review-draft').value = card.followUpDraft;
-    $('review-due').value = card.dueLocal || logic.localDateTimeValue(new Date(card.dueAt));
+    const dueState = logic.reviewDueState(card);
+    $('review-due').value = dueState.value;
+    updateDueReviewState(dueState.valid, dueState.warning);
     $('calendar-choice').value = calendarPrefs.provider === 'apple' ? 'apple' : 'google';
     $('calendar-notice').hidden = true;
-    $('calendar-button').disabled = false;
     $('calendar-button').textContent = 'Prepare calendar task';
+    setGenerationStatus('review-generation-status', generationStatus.message, generationStatus.kind);
     showScreen('review');
   }
 
-  function generateAction() {
+  async function generateAction() {
+    if (generating) return;
+    const note = $('raw-note').value;
+    const useAI = Boolean(aiClient && aiClient.isConfigured(runtimeConfig));
+    generating = true;
+    $('generate-button').disabled = true;
+    $('generate-button').textContent = 'Making your next step…';
+    setGenerationStatus(
+      'generation-status',
+      useAI ? 'Securely creating your next step with AI…' : 'Creating your next step on this device…',
+      'processing',
+    );
+
     try {
-      const card = logic.generateActionCard($('raw-note').value, profile, temporaryContext);
-      renderReview(card);
+      let card;
+      let generationStatus;
+      if (useAI) {
+        try {
+          card = await aiClient.generateActionCard({
+            rawNote: note,
+            profile,
+            temporaryContext,
+            config: runtimeConfig,
+          });
+          generationStatus = {
+            kind: 'success',
+            message: 'Created with AI. Review it before adding it to your calendar.',
+          };
+        } catch {
+          card = logic.generateActionCard(note, profile, temporaryContext);
+          generationStatus = {
+            kind: 'fallback',
+            message: 'AI was unavailable, so the built-in on-device fallback created this card.',
+          };
+        }
+      } else {
+        card = logic.generateActionCard(note, profile, temporaryContext);
+        generationStatus = {
+          kind: 'fallback',
+          message: 'Created on this device with the built-in fallback.',
+        };
+      }
+      renderReview(card, generationStatus);
     } catch (error) {
+      setGenerationStatus('generation-status', 'Unable to create a next step. Your note is still here.', 'fallback');
       alert(error.message || 'Unable to create the next step.');
+    } finally {
+      generating = false;
+      $('generate-button').textContent = 'Make my next step →';
+      $('generate-button').disabled = !$('raw-note').value.trim();
     }
   }
 
@@ -246,7 +313,14 @@
 
   function prepareCalendar() {
     if (!activeCard) return;
-    syncReviewToCard();
+    if (!syncReviewToCard()) {
+      const warning = 'Add a valid date and time before preparing a calendar task.';
+      updateDueReviewState(false, warning);
+      $('calendar-notice').textContent = 'Calendar preparation is blocked until you add a valid date and time.';
+      $('calendar-notice').hidden = false;
+      return;
+    }
+    updateDueReviewState(true, '');
     const calendar = $('calendar-choice').value;
     const notice = $('calendar-notice');
     calendarPrefs = { provider: calendar };
@@ -254,12 +328,14 @@
     updateContextStrip();
 
     if (calendar === 'google') {
-      const popup = window.open(logic.buildGoogleCalendarUrl(activeCard), '_blank', 'noopener,noreferrer');
+      const popup = window.open('', '_blank');
       if (!popup) {
         notice.textContent = 'Your browser blocked the Google Calendar window. Allow pop-ups for this site and try again.';
         notice.hidden = false;
         return;
       }
+      popup.opener = null;
+      popup.location.href = logic.buildGoogleCalendarUrl(activeCard);
       notice.textContent = 'Google Calendar opened with the full task and draft. Confirm the time and click Save there. Google will use your account’s normal notification settings.';
     } else {
       downloadIcs(activeCard);
@@ -367,15 +443,24 @@
   }
 
   function bindEvents() {
-    $('raw-note').addEventListener('input', () => { $('generate-button').disabled = !$('raw-note').value.trim(); });
+    $('raw-note').addEventListener('input', () => {
+      $('generate-button').disabled = generating || !$('raw-note').value.trim();
+      if (!generating) setGenerationStatus('generation-status', '', '');
+    });
     $('sample-button').addEventListener('click', () => {
       $('raw-note').value = SAMPLE_NOTE;
       $('generate-button').disabled = false;
+      setGenerationStatus('generation-status', '', '');
     });
     $('generate-button').addEventListener('click', generateAction);
     $('mic-button').addEventListener('click', toggleDictation);
     $('review-back').addEventListener('click', () => showScreen('capture'));
     $('calendar-button').addEventListener('click', prepareCalendar);
+    $('review-due').addEventListener('input', () => {
+      const valid = syncReviewToCard();
+      updateDueReviewState(valid, valid ? '' : 'Add a valid date and time before preparing a calendar task.');
+      if (valid) $('calendar-notice').hidden = true;
+    });
     $('context-form').addEventListener('submit', saveContext);
     $('context-strip').addEventListener('click', () => showScreen('context'));
     $('calendar-strip').addEventListener('click', () => showScreen('context'));
@@ -393,6 +478,7 @@
   function initialize() {
     bindEvents();
     updateContextStrip();
+    updateContextPrivacyDisclosure();
     populateContextForm();
     renderRecent();
     if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
@@ -402,6 +488,13 @@
       $('mic-hint').textContent = 'Use keyboard dictation or type below';
     }
     const params = new URLSearchParams(location.search);
+    if (params.has('qa') && ['127.0.0.1', 'localhost', '[::1]'].includes(location.hostname)) {
+      globalThis.AfterTalkQAHooks = Object.freeze({
+        renderReview,
+        prepareCalendar,
+        activeCard: () => activeCard,
+      });
+    }
     if (params.get('demo') === 'review') {
       $('raw-note').value = SAMPLE_NOTE;
       $('generate-button').disabled = false;
