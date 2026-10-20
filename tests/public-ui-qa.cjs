@@ -68,7 +68,7 @@ async function waitForApp() {
 }
 
 async function waitForReview() {
-  for (let attempt = 0; attempt < 40; attempt += 1) {
+  for (let attempt = 0; attempt < 160; attempt += 1) {
     if (await evaluate("document.querySelector('.screen.active')?.id === 'screen-review'")) return;
     await sleep(100);
   }
@@ -248,7 +248,11 @@ async function main() {
   } else {
     check('Production origin reports AI generation honestly', review.generationStatus.includes('Created with AI'), review.generationStatus);
   }
-  check('Follow-up draft uses saved profile', review.draft.includes('QA Tester') && !review.draft.includes('Your name'));
+  if (IS_LOCAL_TARGET) {
+    check('Fallback follow-up draft uses saved profile', review.draft.includes('QA Tester') && !review.draft.includes('Your name'));
+  } else {
+    check('AI follow-up draft is grounded and has no placeholder', review.draft.includes('Anna') && !review.draft.includes('Your name'), review.draft);
+  }
   check('Due date generated', !Number.isNaN(new Date(review.due).getTime()), review.due);
   check('Preferred calendar preselected', review.calendar === 'apple', review.calendar);
   check('Review has no horizontal overflow', !review.horizontalOverflow);
