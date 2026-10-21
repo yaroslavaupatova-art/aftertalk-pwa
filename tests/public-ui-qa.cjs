@@ -134,6 +134,25 @@ async function main() {
   check('AI-on context disclosure matches runtime configuration', initial.contextDisclosure === 'When you request a result, your profile fields and active context are sent for AI generation. Context history remains in this browser.', initial.contextDisclosure);
   if (IS_LOCAL_TARGET) check('Local QA hooks available', initial.qaHooks);
   check('No third-party runtime assets', initial.resources.every((url) => new URL(url).origin === new URL(TARGET).origin), JSON.stringify(initial.resources));
+
+  const iosDictation = await evaluate(`(() => {
+    const originalPlatform = navigator.platform;
+    const originalTouchPoints = navigator.maxTouchPoints;
+    Object.defineProperty(navigator, 'platform', { configurable: true, value: 'MacIntel' });
+    Object.defineProperty(navigator, 'maxTouchPoints', { configurable: true, value: 5 });
+    document.querySelector('#mic-button').click();
+    const result = {
+      focused: document.activeElement?.id,
+      hint: document.querySelector('#mic-hint')?.textContent,
+      label: document.querySelector('#mic-button')?.getAttribute('aria-label'),
+    };
+    Object.defineProperty(navigator, 'platform', { configurable: true, value: originalPlatform });
+    Object.defineProperty(navigator, 'maxTouchPoints', { configurable: true, value: originalTouchPoints });
+    return result;
+  })()`);
+  check('iPhone mic opens editable keyboard-dictation field', iosDictation.focused === 'raw-note', JSON.stringify(iosDictation));
+  check('iPhone mic explains reliable keyboard dictation', iosDictation.hint === 'Use the microphone on your iPhone keyboard', JSON.stringify(iosDictation));
+
   const captureShot = await screenshot('01-capture');
   await evaluate("document.querySelector('.main').scrollTop = document.querySelector('.main').scrollHeight");
   await sleep(100);

@@ -386,10 +386,30 @@
     });
   }
 
+  function isAppleMobile() {
+    return /iPhone|iPad|iPod/i.test(navigator.userAgent)
+      || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  }
+
+  function useKeyboardDictation(message = 'Use the microphone on your iPhone keyboard') {
+    const note = $('raw-note');
+    note.focus();
+    note.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    $('mic-hint').textContent = message;
+  }
+
   function toggleDictation() {
+    // WebKit exposes SpeechRecognition on iOS, but it can stop immediately in
+    // Safari and Home Screen apps. Apple's keyboard dictation is the reliable
+    // voice-input path and still keeps the transcript editable in this field.
+    if (isAppleMobile()) {
+      useKeyboardDictation();
+      return;
+    }
+
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      alert('Browser voice capture is not available here. Use the microphone on your phone keyboard or type your note.');
+      useKeyboardDictation('Use the microphone on your keyboard, or type your note');
       return;
     }
     if (listening && recognition) {
@@ -398,10 +418,12 @@
     }
 
     recognition = new SpeechRecognition();
-    recognition.continuous = true;
+    const isAppleBrowser = /Apple/i.test(navigator.vendor || '');
+    recognition.continuous = !isAppleBrowser;
     recognition.interimResults = true;
     recognition.lang = navigator.language || 'en-US';
     let finalTranscript = $('raw-note').value.trim();
+    let endHint = 'Tap to speak';
     recognition.onstart = () => {
       listening = true;
       $('mic-button').classList.add('listening');
@@ -418,14 +440,32 @@
       $('raw-note').value = `${finalTranscript}${interim ? ` ${interim}` : ''}`.trim();
       $('generate-button').disabled = !$('raw-note').value.trim();
     };
-    recognition.onerror = () => alert('Voice capture stopped. You can continue typing in the same note.');
+    recognition.onerror = (event) => {
+      if (event.error === 'aborted') return;
+      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+        endHint = 'Microphone access is blocked. Allow it in browser settings or use keyboard dictation.';
+      } else if (event.error === 'audio-capture') {
+        endHint = 'No microphone was found. Use keyboard dictation or type your note.';
+      } else if (event.error === 'no-speech') {
+        endHint = 'No speech was heard. Tap and try again, or use keyboard dictation.';
+      } else if (event.error === 'network') {
+        endHint = 'Browser speech service is unavailable. Use keyboard dictation or type your note.';
+      } else {
+        endHint = 'Voice capture stopped. Use keyboard dictation or type in the same note.';
+      }
+    };
     recognition.onend = () => {
       listening = false;
       $('mic-button').classList.remove('listening');
       $('mic-button').setAttribute('aria-label', 'Start voice capture');
-      $('mic-hint').textContent = 'Tap to speak';
+      $('mic-hint').textContent = endHint;
     };
-    recognition.start();
+    try {
+      recognition.start();
+    } catch {
+      recognition = null;
+      useKeyboardDictation('Voice capture could not start. Use the microphone on your keyboard.');
+    }
   }
 
   async function installApp() {
