@@ -135,23 +135,52 @@ async function main() {
   if (IS_LOCAL_TARGET) check('Local QA hooks available', initial.qaHooks);
   check('No third-party runtime assets', initial.resources.every((url) => new URL(url).origin === new URL(TARGET).origin), JSON.stringify(initial.resources));
 
-  const iosDictation = await evaluate(`(() => {
-    const originalPlatform = navigator.platform;
-    const originalTouchPoints = navigator.maxTouchPoints;
-    Object.defineProperty(navigator, 'platform', { configurable: true, value: 'MacIntel' });
-    Object.defineProperty(navigator, 'maxTouchPoints', { configurable: true, value: 5 });
-    document.querySelector('#mic-button').click();
-    const result = {
-      focused: document.activeElement?.id,
-      hint: document.querySelector('#mic-hint')?.textContent,
-      label: document.querySelector('#mic-button')?.getAttribute('aria-label'),
+  await evaluate(`(() => {
+    globalThis.__voiceQaOriginals = {
+      mediaDevices: navigator.mediaDevices,
+      MediaRecorder: globalThis.MediaRecorder,
+      AudioContext: globalThis.AudioContext,
+      webkitAudioContext: globalThis.webkitAudioContext,
     };
-    Object.defineProperty(navigator, 'platform', { configurable: true, value: originalPlatform });
-    Object.defineProperty(navigator, 'maxTouchPoints', { configurable: true, value: originalTouchPoints });
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: { getUserMedia: async () => ({ getTracks: () => [{ stop() {} }] }) },
+    });
+    class FakeMediaRecorder extends EventTarget {
+      static isTypeSupported() { return true; }
+      constructor() { super(); this.state = 'inactive'; this.mimeType = 'audio/webm'; }
+      start() { this.state = 'recording'; }
+      stop() { this.state = 'inactive'; this.dispatchEvent(new Event('stop')); }
+    }
+    globalThis.MediaRecorder = FakeMediaRecorder;
+    globalThis.AudioContext = undefined;
+    globalThis.webkitAudioContext = undefined;
+    document.querySelector('#mic-button').click();
+  })()`);
+  await sleep(50);
+  const voiceStart = await evaluate(`({
+    listening: document.querySelector('#mic-button').classList.contains('listening'),
+    hint: document.querySelector('#mic-hint')?.textContent,
+    label: document.querySelector('#mic-button')?.getAttribute('aria-label'),
+  })`);
+  check('Large mic starts direct recording', voiceStart.listening && voiceStart.label === 'Stop voice capture', JSON.stringify(voiceStart));
+  check('Voice UI explains automatic stopping', voiceStart.hint === 'Listening… stops automatically after you finish', JSON.stringify(voiceStart));
+  await evaluate("document.querySelector('#mic-button').click()");
+  await sleep(50);
+  const voiceStop = await evaluate(`(() => {
+    const result = {
+      listening: document.querySelector('#mic-button').classList.contains('listening'),
+      hint: document.querySelector('#mic-hint')?.textContent,
+    };
+    const originals = globalThis.__voiceQaOriginals;
+    Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: originals.mediaDevices });
+    globalThis.MediaRecorder = originals.MediaRecorder;
+    globalThis.AudioContext = originals.AudioContext;
+    globalThis.webkitAudioContext = originals.webkitAudioContext;
+    delete globalThis.__voiceQaOriginals;
     return result;
   })()`);
-  check('iPhone mic opens editable keyboard-dictation field', iosDictation.focused === 'raw-note', JSON.stringify(iosDictation));
-  check('iPhone mic explains reliable keyboard dictation', iosDictation.hint === 'Use the microphone on your iPhone keyboard', JSON.stringify(iosDictation));
+  check('Large mic supports tap-again stop', !voiceStop.listening && voiceStop.hint === 'No speech was captured. Tap to try again.', JSON.stringify(voiceStop));
 
   const captureShot = await screenshot('01-capture');
   await evaluate("document.querySelector('.main').scrollTop = document.querySelector('.main').scrollHeight");

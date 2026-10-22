@@ -13,6 +13,6 @@
     }
   },
   "tasks": {
-    "check": "deno fmt --check && deno lint functions tests && deno check functions/generate-action/index.ts && deno test tests"
+    "check": "deno fmt --check && deno lint functions tests && deno check functions/generate-action/index.ts functions/transcribe-note/index.ts && deno test tests"
   }
 }

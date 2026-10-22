@@ -14,8 +14,8 @@
     <a class="back" href="./">← Back to AfterTalk</a>
     <article class="card">
       <h1>Privacy notice</h1>
-      <p class="meta">Pilot version · Effective 14 October 2026</p>
-      <p class="notice"><strong>Short version:</strong> Your profile and history stay in this browser. If AI is enabled and you ask AfterTalk to create a next step, the current note, profile fields, and active context are sent through AfterTalk’s Supabase function to OpenAI. If AI is disabled or unavailable, the card is created on your device.</p>
+      <p class="meta">Pilot version · Effective 21 October 2026</p>
+      <p class="notice"><strong>Short version:</strong> Your profile and history stay in this browser. If you use the large microphone, the recording is sent through AfterTalk’s Supabase function to OpenAI for transcription. When you ask AfterTalk to create a next step, the resulting note, profile fields, and active context are sent through Supabase to OpenAI. If action generation is unavailable, the card is created on your device.</p>
 
       <h2>Information stored in your browser</h2>
       <p>AfterTalk stores your profile and writing preferences, active temporary context, saved context history, calendar preference, and prepared actions in local storage on the browser you are using. A prepared action can include the source note, next step, date, and follow-up draft.</p>
@@ -27,7 +27,8 @@
       <p>If AI is disabled, the note, profile, and context are handled by the deterministic rules engine in your browser and are not sent to Supabase or OpenAI for generation. If the AI service fails or times out, AfterTalk creates the card with that same on-device fallback.</p>
 
       <h2>Voice input</h2>
-      <p>AfterTalk does not upload or store raw audio. When you choose browser speech recognition, your browser or operating-system provider may process your voice under its own privacy terms. AfterTalk receives the resulting text. If AI is enabled and you request a result, that text is sent as part of the note described above. You can type instead.</p>
+      <p>When you tap the large microphone and grant microphone permission, AfterTalk records a voice note in browser memory. Recording stops automatically after you finish speaking, can be stopped by tapping the button again, and is limited to 90 seconds. The audio file is sent to an AfterTalk Supabase Edge Function and then to OpenAI’s transcription service. The returned text is placed in the editable note field.</p>
+      <p>AfterTalk does not intentionally write the audio file or transcript to the Supabase database. The in-browser recording is discarded after the transcription request completes. Supabase, OpenAI, and network providers may process audio, transcript content, and service metadata under the operator’s configuration and their applicable terms. If direct recording is unsupported, you can use operating-system keyboard dictation or type instead.</p>
 
       <h2>Abuse prevention and service metadata</h2>
       <p>When the AI service is used, the Edge Function creates a salted SHA-256 fingerprint from the request IP address. The rate-limit table stores that fingerprint, a usage count, and the start of a one-hour usage window; it does not store the raw IP address in that table. Counters older than 48 hours are pruned when the rate-limit function next consumes a request.</p>

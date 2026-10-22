@@ -87,10 +87,10 @@ assert.doesNotMatch(serviceWorker, /keys\.filter\(\(key\) => key !== CACHE\)/);
 const appSource = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
 assert.match(appSource, /contextPrivacyDisclosure/);
 assert.match(appSource, /review-due-warning/);
-assert.match(appSource, /function isAppleMobile\(\)/);
-assert.match(appSource, /Use the microphone on your iPhone keyboard/);
-assert.match(appSource, /event\.error === 'not-allowed'/);
-assert.match(appSource, /recognition\.continuous = !isAppleBrowser/);
+assert.match(appSource, /monitorRecordingSilence/);
+assert.match(appSource, /stops automatically after you finish/);
+assert.match(appSource, /setTimeout\(stopAudioRecording, 90000\)/);
+assert.match(appSource, /AfterTalkVoiceClient\.transcribeAudio/);
 
 const indexSource = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 assert.match(indexSource, /id="context-data-disclosure"/);

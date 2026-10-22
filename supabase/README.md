@@ -1,9 +1,11 @@
-# AfterTalk generation backend
+# AfterTalk AI backend
 
 The `generate-action` Edge Function accepts authenticated `POST` requests and returns one validated
-Action Card. Because current Supabase publishable keys are not JWTs, `config.toml` disables the
-legacy gateway JWT check and the function authenticates the `apikey` with `@supabase/server` using
-`auth: "publishable"`. OpenAI and Supabase secret credentials remain server-side.
+Action Card. The `transcribe-note` Edge Function accepts a bounded multipart audio recording and
+returns editable text from OpenAI transcription. Because current Supabase publishable keys are not
+JWTs, `config.toml` disables the legacy gateway JWT check and both functions authenticate the
+`apikey` with `@supabase/server` using `auth: "publishable"`. OpenAI and Supabase secret credentials
+remain server-side.
 
 ## Request
 
@@ -32,11 +34,13 @@ cp supabase/.env.example supabase/.env
 # Fill supabase/.env locally; it is gitignored.
 supabase secrets set --env-file supabase/.env
 supabase functions deploy generate-action
+supabase functions deploy transcribe-note
 ```
 
 Clients must send the project's default publishable key in the `apikey` header and use
-`Content-Type: application/json`. Do not replace the in-function publishable-key check with an
-unauthenticated public handler.
+`Content-Type: application/json` for generation. Transcription clients submit the `audio` field as
+`multipart/form-data`; recordings are limited to 10 MB and supported browser audio formats. Do not
+replace the in-function publishable-key checks with unauthenticated public handlers.
 
 Use a distinct random `RATE_LIMIT_SALT` of at least 32 characters. `RATE_LIMIT_MAX_REQUESTS`
 defaults to 30 and is bounded to 1–300 requests per one-hour bucket. The SQL RPC is atomic,

@@ -14,7 +14,7 @@
     <a class="back" href="./">← Back to AfterTalk</a>
     <article class="card">
       <h1>Pilot terms</h1>
-      <p class="meta">Effective 14 October 2026</p>
+      <p class="meta">Effective 21 October 2026</p>
       <p class="notice"><strong>AfterTalk is an early pilot.</strong> AI and fallback output can be incomplete, inaccurate, or unsuitable. Review every suggestion, follow-up, name, date, and calendar entry before using it.</p>
 
       <h2>Purpose</h2>
@@ -31,6 +31,9 @@
 
       <h2>AI service and fallback</h2>
       <p>When AI is enabled, requesting a card sends the current note, profile fields, and active context through the configured Supabase Edge Function to OpenAI. Service limits, safety controls, outages, or timeouts may prevent an AI result. In that case, AfterTalk uses its deterministic on-device fallback. A fallback result is not an AI result and may be more limited, but it requires the same review.</p>
+
+      <h2>Voice transcription</h2>
+      <p>Using the large microphone records a bounded voice note and sends the audio through Supabase to OpenAI for transcription. Review and correct the transcript before creating an Action Card. Do not record another person without the permission required by applicable law, policy, or agreement.</p>
 
       <h2>No automatic sending</h2>
       <p>AfterTalk does not automatically send messages or silently create calendar events.</p>

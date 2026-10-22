@@ -4,7 +4,7 @@ AfterTalk is a dependency-free, mobile-first Progressive Web App. The browser ap
 
 ## What the app does
 
-- Captures a typed note or text returned by browser/OS speech recognition
+- Captures a typed note or records up to 90 seconds from the large microphone, stopping automatically after silence and transcribing through Supabase and OpenAI
 - Keeps the profile, saved context history, calendar preference, and prepared actions in browser local storage
 - Creates an editable next step, follow-up draft, and suggested date
 - Uses the configured AI service when enabled, with an on-device fallback if that service fails
@@ -36,7 +36,7 @@ For abuse prevention, the Edge Function derives a salted SHA-256 fingerprint fro
 
 The exact Origin allowlist is a browser abuse filter, not authentication for non-browser clients; an external client can imitate an Origin header and use the public publishable key. The rate limit reduces abuse, while OpenAI project spending caps and usage limits remain the final cost boundary.
 
-AfterTalk does not upload or store raw audio. If voice capture is used, the browser or operating system may process the speech. AfterTalk receives the resulting text; when AI is enabled and the user requests a result, that text is sent as part of the note.
+For direct voice capture, the browser keeps the bounded recording in memory, sends it to the `transcribe-note` Edge Function, and receives editable text from OpenAI transcription. AfterTalk does not intentionally write audio or transcript content to the database, and the browser discards the recording after the request. Unsupported browsers fall back to keyboard dictation or typing.
 
 ### AI disabled or unavailable
 
@@ -55,8 +55,10 @@ The production configuration enables AI for the approved GitHub Pages origin. If
 | --- | --- |
 | `enabled` | Must be exactly `true` before remote AI is used; enabled in the production configuration |
 | `functionUrl` | HTTPS URL of the deployed `generate-action` Edge Function |
+| `transcriptionUrl` | HTTPS URL of the deployed `transcribe-note` Edge Function |
 | `publishableKey` | Supabase publishable key authenticated by the Edge Function; public by design |
 | `timeoutMs` | Browser request timeout, clamped by the client to 50–30,000 ms |
+| `transcriptionTimeoutMs` | Voice transcription timeout, clamped by the client to 5,000–60,000 ms |
 
 For a new environment, keep `functionUrl` and `publishableKey` blank until its backend is deployed and verified. The production file contains only the deployed function URL and Supabase publishable key, both public by design. Never add `OPENAI_API_KEY`, Supabase secret keys, `RATE_LIMIT_SALT`, passwords, or other secrets to this file.
 
@@ -68,10 +70,13 @@ Set these as Supabase Edge Function secrets or environment settings:
 
 - `OPENAI_API_KEY`
 - `OPENAI_MODEL`
+- `OPENAI_TRANSCRIPTION_MODEL` — optional; defaults to `gpt-transcribe`
 - `ALLOWED_ORIGINS` — exact comma-separated production origins; wildcards are rejected
 - `RATE_LIMIT_SALT` — a unique random value of at least 32 characters
 - `RATE_LIMIT_MAX_REQUESTS` — optional; defaults to 30 requests per one-hour window
+- `TRANSCRIBE_RATE_LIMIT_MAX_REQUESTS` — optional; defaults to 30 voice transcriptions per one-hour window
 - `OPENAI_TIMEOUT_MS` — optional; defaults to 30 seconds
+- `OPENAI_TRANSCRIPTION_TIMEOUT_MS` — optional; defaults to 45 seconds
 - `ALLOW_LOCALHOST_ORIGINS` — optional; keep `false` in production
 
 `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEYS`, and `SUPABASE_SECRET_KEYS` are supplied by the Supabase runtime. The function validates the browser's default publishable key with `@supabase/server` and uses the default secret key only for its rate-limit RPC. Never expose a secret key to the browser.
@@ -92,10 +97,12 @@ Run the browser-side checks from a second terminal:
 node --check runtime-config.js
 node --check logic.js
 node --check ai-client.js
+node --check voice-client.js
 node --check app.js
 node --check sw.js
 node tests/smoke.cjs
 node tests/ai-client.cjs
+node tests/voice-client.cjs
 TARGET_URL=http://127.0.0.1:8087/ node tests/public-ui-qa.cjs
 ```
 

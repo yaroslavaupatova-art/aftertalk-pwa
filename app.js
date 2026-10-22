@@ -41,8 +41,14 @@
   let calendarPrefs = read(STORAGE.calendar, DEFAULT_CALENDAR);
   let actions = read(STORAGE.actions, []);
   let activeCard = null;
-  let recognition = null;
+  let mediaRecorder = null;
+  let mediaStream = null;
+  let recordingChunks = [];
+  let recordingAudioContext = null;
+  let recordingFrame = null;
+  let recordingMaxTimer = null;
   let listening = false;
+  let transcribing = false;
   let installPrompt = null;
   let generating = false;
 
@@ -386,85 +392,167 @@
     });
   }
 
-  function isAppleMobile() {
-    return /iPhone|iPad|iPod/i.test(navigator.userAgent)
-      || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  }
-
-  function useKeyboardDictation(message = 'Use the microphone on your iPhone keyboard') {
+  function useKeyboardDictation(message = 'Use the microphone on your keyboard, or type your note') {
     const note = $('raw-note');
     note.focus();
     note.scrollIntoView({ block: 'center', behavior: 'smooth' });
     $('mic-hint').textContent = message;
   }
 
-  function toggleDictation() {
-    // WebKit exposes SpeechRecognition on iOS, but it can stop immediately in
-    // Safari and Home Screen apps. Apple's keyboard dictation is the reliable
-    // voice-input path and still keeps the transcript editable in this field.
-    if (isAppleMobile()) {
+  function preferredRecordingOptions() {
+    if (typeof MediaRecorder === 'undefined') return null;
+    const candidates = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus'];
+    const mimeType = candidates.find((type) => MediaRecorder.isTypeSupported?.(type));
+    return mimeType ? { mimeType } : {};
+  }
+
+  function resetRecordingCapture() {
+    if (recordingFrame !== null) cancelAnimationFrame(recordingFrame);
+    if (recordingMaxTimer !== null) clearTimeout(recordingMaxTimer);
+    recordingFrame = null;
+    recordingMaxTimer = null;
+    if (recordingAudioContext) recordingAudioContext.close().catch(() => {});
+    recordingAudioContext = null;
+    if (mediaStream) mediaStream.getTracks().forEach((track) => track.stop());
+    mediaStream = null;
+    listening = false;
+    $('mic-button').classList.remove('listening');
+    $('mic-button').setAttribute('aria-label', 'Start voice capture');
+  }
+
+  function stopAudioRecording() {
+    if (!mediaRecorder || mediaRecorder.state === 'inactive') return;
+    $('mic-hint').textContent = 'Transcribing…';
+    mediaRecorder.stop();
+  }
+
+  function monitorRecordingSilence(stream) {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return;
+    recordingAudioContext = new AudioContext();
+    const source = recordingAudioContext.createMediaStreamSource(stream);
+    const analyser = recordingAudioContext.createAnalyser();
+    analyser.fftSize = 2048;
+    analyser.smoothingTimeConstant = 0.2;
+    source.connect(analyser);
+    const samples = new Uint8Array(analyser.fftSize);
+    const startedAt = performance.now();
+    let heardSpeech = false;
+    let silenceStartedAt = null;
+
+    const inspect = () => {
+      if (!listening || !mediaRecorder || mediaRecorder.state === 'inactive') return;
+      analyser.getByteTimeDomainData(samples);
+      let sumSquares = 0;
+      for (const sample of samples) {
+        const centered = (sample - 128) / 128;
+        sumSquares += centered * centered;
+      }
+      const rms = Math.sqrt(sumSquares / samples.length);
+      const now = performance.now();
+      if (rms >= 0.025) {
+        heardSpeech = true;
+        silenceStartedAt = null;
+      } else if (heardSpeech) {
+        if (silenceStartedAt === null) silenceStartedAt = now;
+        if (now - silenceStartedAt >= 1800) {
+          stopAudioRecording();
+          return;
+        }
+      } else if (now - startedAt >= 10000) {
+        stopAudioRecording();
+        return;
+      }
+      recordingFrame = requestAnimationFrame(inspect);
+    };
+    recordingAudioContext.resume().catch(() => {});
+    inspect();
+  }
+
+  async function finishAudioRecording(recorder, chunks) {
+    const mimeType = recorder.mimeType || chunks.find((chunk) => chunk.type)?.type || 'audio/webm';
+    resetRecordingCapture();
+    mediaRecorder = null;
+    recordingChunks = [];
+    const audio = new Blob(chunks, { type: mimeType });
+    if (audio.size === 0) {
+      $('mic-hint').textContent = 'No speech was captured. Tap to try again.';
+      return;
+    }
+
+    transcribing = true;
+    $('generate-button').disabled = true;
+    try {
+      const transcript = await globalThis.AfterTalkVoiceClient.transcribeAudio(
+        audio,
+        globalThis.AfterTalkConfig,
+      );
+      const note = $('raw-note');
+      note.value = `${note.value.trim()} ${transcript}`.trim();
+      note.dispatchEvent(new Event('input', { bubbles: true }));
+      note.focus();
+      $('mic-hint').textContent = 'Voice added. Tap to record more.';
+    } catch (error) {
+      const code = error?.code;
+      if (code === 'timeout') $('mic-hint').textContent = 'Transcription timed out. Tap to try again.';
+      else if (code === 'audio-too-large') $('mic-hint').textContent = 'Recording was too long. Keep it under 90 seconds.';
+      else $('mic-hint').textContent = 'Could not transcribe this recording. Tap to try again or type below.';
+    } finally {
+      transcribing = false;
+      $('generate-button').disabled = generating || !$('raw-note').value.trim();
+    }
+  }
+
+  async function toggleDictation() {
+    if (transcribing) return;
+    if (listening) {
+      stopAudioRecording();
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
       useKeyboardDictation();
       return;
     }
-
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      useKeyboardDictation('Use the microphone on your keyboard, or type your note');
-      return;
-    }
-    if (listening && recognition) {
-      recognition.stop();
+    if (!globalThis.AfterTalkVoiceClient) {
+      $('mic-hint').textContent = 'Voice transcription is unavailable. Type your note below.';
       return;
     }
 
-    recognition = new SpeechRecognition();
-    const isAppleBrowser = /Apple/i.test(navigator.vendor || '');
-    recognition.continuous = !isAppleBrowser;
-    recognition.interimResults = true;
-    recognition.lang = navigator.language || 'en-US';
-    let finalTranscript = $('raw-note').value.trim();
-    let endHint = 'Tap to speak';
-    recognition.onstart = () => {
+    $('mic-hint').textContent = 'Requesting microphone access…';
+    try {
+      mediaStream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
+      const options = preferredRecordingOptions();
+      mediaRecorder = Object.keys(options || {}).length
+        ? new MediaRecorder(mediaStream, options)
+        : new MediaRecorder(mediaStream);
+      recordingChunks = [];
+      const recorder = mediaRecorder;
+      recorder.addEventListener('dataavailable', (event) => {
+        if (event.data?.size) recordingChunks.push(event.data);
+      });
+      recorder.addEventListener('stop', () => finishAudioRecording(recorder, [...recordingChunks]));
+      recorder.addEventListener('error', () => {
+        $('mic-hint').textContent = 'Recording stopped unexpectedly. Tap to try again.';
+      });
+      recorder.start(1000);
       listening = true;
       $('mic-button').classList.add('listening');
       $('mic-button').setAttribute('aria-label', 'Stop voice capture');
-      $('mic-hint').textContent = 'Listening… tap when finished';
-    };
-    recognition.onresult = (event) => {
-      let interim = '';
-      for (let index = event.resultIndex; index < event.results.length; index += 1) {
-        const transcript = event.results[index][0].transcript;
-        if (event.results[index].isFinal) finalTranscript = `${finalTranscript} ${transcript}`.trim();
-        else interim += transcript;
-      }
-      $('raw-note').value = `${finalTranscript}${interim ? ` ${interim}` : ''}`.trim();
-      $('generate-button').disabled = !$('raw-note').value.trim();
-    };
-    recognition.onerror = (event) => {
-      if (event.error === 'aborted') return;
-      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-        endHint = 'Microphone access is blocked. Allow it in browser settings or use keyboard dictation.';
-      } else if (event.error === 'audio-capture') {
-        endHint = 'No microphone was found. Use keyboard dictation or type your note.';
-      } else if (event.error === 'no-speech') {
-        endHint = 'No speech was heard. Tap and try again, or use keyboard dictation.';
-      } else if (event.error === 'network') {
-        endHint = 'Browser speech service is unavailable. Use keyboard dictation or type your note.';
+      $('mic-hint').textContent = 'Listening… stops automatically after you finish';
+      monitorRecordingSilence(mediaStream);
+      recordingMaxTimer = setTimeout(stopAudioRecording, 90000);
+    } catch (error) {
+      resetRecordingCapture();
+      mediaRecorder = null;
+      if (error?.name === 'NotAllowedError' || error?.name === 'SecurityError') {
+        $('mic-hint').textContent = 'Microphone access is blocked. Allow it in Safari Settings, then try again.';
+      } else if (error?.name === 'NotFoundError') {
+        $('mic-hint').textContent = 'No microphone was found on this device.';
       } else {
-        endHint = 'Voice capture stopped. Use keyboard dictation or type in the same note.';
+        $('mic-hint').textContent = 'Could not start recording. Check microphone access and try again.';
       }
-    };
-    recognition.onend = () => {
-      listening = false;
-      $('mic-button').classList.remove('listening');
-      $('mic-button').setAttribute('aria-label', 'Start voice capture');
-      $('mic-hint').textContent = endHint;
-    };
-    try {
-      recognition.start();
-    } catch {
-      recognition = null;
-      useKeyboardDictation('Voice capture could not start. Use the microphone on your keyboard.');
     }
   }
 
@@ -484,7 +572,7 @@
 
   function bindEvents() {
     $('raw-note').addEventListener('input', () => {
-      $('generate-button').disabled = generating || !$('raw-note').value.trim();
+      $('generate-button').disabled = generating || transcribing || !$('raw-note').value.trim();
       if (!generating) setGenerationStatus('generation-status', '', '');
     });
     $('sample-button').addEventListener('click', () => {
@@ -524,7 +612,7 @@
     if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
       window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
     }
-    if (!('SpeechRecognition' in window) && !('webkitSpeechRecognition' in window)) {
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
       $('mic-hint').textContent = 'Use keyboard dictation or type below';
     }
     const params = new URLSearchParams(location.search);

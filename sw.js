@@ -1,5 +1,5 @@
-const CACHE = 'aftertalk-web-v8';
-const SHELL = ['./', 'index.html', 'styles.css', 'runtime-config.js', 'logic.js', 'ai-client.js', 'app.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'privacy.html', 'terms.html']
+const CACHE = 'aftertalk-web-v9';
+const SHELL = ['./', 'index.html', 'styles.css', 'runtime-config.js', 'logic.js', 'ai-client.js', 'voice-client.js', 'app.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'privacy.html', 'terms.html']
   .map((path) => new URL(path, self.registration.scope).href);
 const RUNTIME_CONFIG = new URL('runtime-config.js', self.registration.scope).href;
 
